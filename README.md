@@ -58,9 +58,4 @@ node script/executeGaslessTransfer.cjs
 
 # Deposit
 node script/executeGaslessDeposit.cjs
-<<<<<<< HEAD
 ```
->>>>>>> d91306d (Initial commit: gasless transfer and deposit contracts for TRON)
-=======
-```
->>>>>>> 2ccd7c4 (Initial commit: gasless transfer and deposit contracts for TRON)
