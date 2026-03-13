@@ -1,0 +1,14 @@
+{
+  "name": "tron-gasless-transfer-mvp",
+  "version": "1.0.0",
+  "description": "A minimal viable product for TRON gas-less USDT transfer.",
+  "type": "module",
+  "dependencies": {
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "dotenv": "^17.2.4",
+    "solc": "0.8.24",
+    "tron-solc": "^0.4.24",
+    "tronweb": "^6.2.0"
+  }
+}
