@@ -1,7 +1,10 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # AlphaX-Protocol-Contract-Tron
 AX vault on Tron
 =======
+=======
+>>>>>>> 2ccd7c4 (Initial commit: gasless transfer and deposit contracts for TRON)
 # TRON Gasless Transfer
 
 A simple implementation of gasless USDT transfers on the TRON network.
@@ -55,5 +58,9 @@ node script/executeGaslessTransfer.cjs
 
 # Deposit
 node script/executeGaslessDeposit.cjs
+<<<<<<< HEAD
 ```
 >>>>>>> d91306d (Initial commit: gasless transfer and deposit contracts for TRON)
+=======
+```
+>>>>>>> 2ccd7c4 (Initial commit: gasless transfer and deposit contracts for TRON)

@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 .architect
 bootstrap.css
 bootstrap.js
@@ -14,9 +15,14 @@ resources/sass/.sass-cache/
 resources/.arch-internal-preview.css
 .arch-internal-preview.css
 =======
+=======
+>>>>>>> 2ccd7c4 (Initial commit: gasless transfer and deposit contracts for TRON)
 node_modules/
 .env
 deployed-addresses.*.json
 .claude/
 .DS_Store
+<<<<<<< HEAD
 >>>>>>> d91306d (Initial commit: gasless transfer and deposit contracts for TRON)
+=======
+>>>>>>> 2ccd7c4 (Initial commit: gasless transfer and deposit contracts for TRON)
