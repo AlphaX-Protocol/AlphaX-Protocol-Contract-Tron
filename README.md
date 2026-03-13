@@ -1,5 +1,4 @@
 # TRON Gasless Transfer
-
 A simple implementation of gasless USDT transfers on the TRON network.
 
 ## Quick Start
