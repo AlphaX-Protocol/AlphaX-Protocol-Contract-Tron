@@ -1,32 +1,12 @@
 const { TronWeb } = require('tronweb');
-const { readFileSync, writeFileSync } = require('fs');
+const { writeFileSync } = require('fs');
 const { join } = require('path');
-const solc = require('solc');
 
 require('dotenv').config();
 
 const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-
-function decodeErrorMessage(msg) {
-  if (typeof msg !== 'string' || msg.length < 2) return msg;
-  const hex = msg.startsWith('0x') ? msg.slice(2) : msg;
-  if (!/^[0-9a-fA-F]+$/.test(hex)) return msg;
-  try {
-    return Buffer.from(hex, 'hex').toString('utf8');
-  } catch {
-    return msg;
-  }
-}
-
-/** Strip TRON 41-prefix to get a 20-byte (40 hex char) address for ABI encoding. */
-function toAbiAddress(tronWeb, addr) {
-  const hex = tronWeb.address.toHex(addr);
-  return (hex.startsWith('41') ? hex.substring(2) : hex.replace(/^0x/, '')).toLowerCase();
-}
-
-function pad32(hexVal) {
-  return hexVal.padStart(64, '0');
-}
+const { compileContracts } = require('./utils/compile.cjs');
+const { networks, decodeErrorMessage, toAbiAddress, pad32 } = require('./utils/common.cjs');
 
 /**
  * ABI-encode the ERC1967Proxy constructor args: (address implementation, bytes _data).
@@ -68,23 +48,6 @@ function buildInitCalldata(tronWeb, signersAddr20, usdtAddr20, withdrawUSDTLimit
   }
   return data;
 }
-
-const networks = {
-  mainnet: {
-    fullNode: 'https://api.trongrid.io',
-    solidityNode: 'https://api.trongrid.io',
-    eventServer: 'https://api.trongrid.io',
-    name: 'Mainnet',
-    usdtAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
-  },
-  nile: {
-    fullNode: 'https://api.nileex.io',
-    solidityNode: 'https://api.nileex.io',
-    eventServer: 'https://api.nileex.io',
-    name: 'Nile Testnet',
-    usdtAddress: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'
-  }
-};
 
 async function main() {
   const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
@@ -129,94 +92,7 @@ async function main() {
   }
 
   // --- Compile Contracts ---
-  console.log("Compiling contracts...");
-  const contractNames = ["GasFreeFactory", "GasFreeController", "DEXVaultV1", "ERC1967Proxy"];
-  const contractFiles = {
-    "contracts/GasFreeFactory.sol": readFileSync(join(__dirname, '../contracts/GasFreeFactory.sol'), 'utf8'),
-    "contracts/GasFreeController.sol": readFileSync(join(__dirname, '../contracts/GasFreeController.sol'), 'utf8'),
-    "contracts/lib/IERC20.sol": readFileSync(join(__dirname, '../contracts/lib/IERC20.sol'), 'utf8'),
-    "contracts/interfaces/IGasFreeAccount.sol": readFileSync(join(__dirname, '../contracts/interfaces/IGasFreeAccount.sol'), 'utf8'),
-    "contracts/interfaces/IGasFreeFactory.sol": readFileSync(join(__dirname, '../contracts/interfaces/IGasFreeFactory.sol'), 'utf8'),
-    "contracts/GasFreeAccount.sol": readFileSync(join(__dirname, '../contracts/GasFreeAccount.sol'), 'utf8'),
-    "contracts/DEXVaultV1.sol": readFileSync(join(__dirname, '../contracts/DEXVaultV1.sol'), 'utf8'),
-
-    // Proxy contracts
-    "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol'), 'utf8'),
-    "@openzeppelin/contracts/proxy/Proxy.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/proxy/Proxy.sol'), 'utf8'),
-
-    // OpenZeppelin dependencies
-    "@openzeppelin/contracts/utils/cryptography/EIP712.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/ECDSA.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/ECDSA.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ShortStrings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ShortStrings.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC5267.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC5267.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Strings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Strings.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/StorageSlot.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/StorageSlot.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/Math.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/Math.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SafeCast.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SignedMath.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Panic.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Panic.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ReentrancyGuard.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol'), 'utf8'),
-    "@openzeppelin/contracts/token/ERC20/IERC20.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol'), 'utf8'),
-    "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol'), 'utf8'),
-    "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Address.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Address.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/draft-IERC1822.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/draft-IERC1822.sol'), 'utf8'),
-    "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol'), 'utf8'),
-    "@openzeppelin/contracts/proxy/beacon/IBeacon.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/proxy/beacon/IBeacon.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC1967.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC1967.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC1363.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC1363.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC20.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC20.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC165.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC165.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Errors.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Errors.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/introspection/IERC165.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol'), 'utf8'),
-  };
-
-  const input = {
-    language: 'Solidity',
-    sources: Object.keys(contractFiles).reduce((acc, file) => {
-      acc[file] = { content: contractFiles[file] };
-      return acc;
-    }, {}),
-    settings: {
-      optimizer: { enabled: true, runs: 200 },
-      outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } },
-      evmVersion: 'istanbul'
-    },
-  };
-
-  const compiledOutput = JSON.parse(solc.compile(JSON.stringify(input)));
-
-  if (compiledOutput.errors) {
-    compiledOutput.errors.forEach(err => {
-      if (err.type === 'Warning') {
-        console.warn(err.formattedMessage);
-      } else {
-        console.error(err.formattedMessage);
-        throw new Error("Solidity compilation failed.");
-      }
-    });
-  }
-
-  const artifacts = {};
-  for (const name of contractNames) {
-    const solFileName = `${name}.sol`;
-    const contractPath = Object.keys(compiledOutput.contracts).find(p => p.endsWith(solFileName));
-    if (!contractPath || !compiledOutput.contracts[contractPath] || !compiledOutput.contracts[contractPath][name]) {
-      throw new Error(`Compilation output missing for contract: ${name} in path ${contractPath}`);
-    }
-    artifacts[name] = {
-      abi: compiledOutput.contracts[contractPath][name].abi,
-      bytecode: `0x${compiledOutput.contracts[contractPath][name].evm.bytecode.object}`,
-    };
-  }
-  console.log("Contracts compiled successfully.");
+  const artifacts = compileContracts(['core', 'vault', 'proxy']);
 
   // ========================================================================
   //  1. Deploy DEXVaultV1 IMPLEMENTATION (logic contract, not initialised)
@@ -476,7 +352,7 @@ async function main() {
     const msg = typeof rawMsg === 'string' && /^[0-9a-fA-F]+$/.test(rawMsg.replace(/^0x/, '')) ? decodeErrorMessage(rawMsg) : (rawMsg ? String(rawMsg) : 'Unknown error');
     throw new Error(`TRX transfer broadcast failed: ${msg}`);
   }
-  await waitforTxConfirmation(tronWeb, trxBroadcast.txid);
+  //await waitforTxConfirmation(tronWeb, trxBroadcast.txid);
   console.log(`33 TRX sent to ${userGasFreeAccountAddress}. TxID: ${trxBroadcast.txid}`);
 
   return {

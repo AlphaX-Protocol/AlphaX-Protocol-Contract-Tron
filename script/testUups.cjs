@@ -1,37 +1,12 @@
 const { TronWeb } = require('tronweb');
 const { readFileSync, existsSync } = require('fs');
 const { join } = require('path');
-const solc = require('solc');
 
 require('dotenv').config();
 
 const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-
-function decodeErrorMessage(msg) {
-  if (typeof msg !== 'string' || msg.length < 2) return msg;
-  const hex = msg.startsWith('0x') ? msg.slice(2) : msg;
-  if (!/^[0-9a-fA-F]+$/.test(hex)) return msg;
-  try {
-    return Buffer.from(hex, 'hex').toString('utf8');
-  } catch {
-    return msg;
-  }
-}
-
-const networks = {
-  mainnet: {
-    fullNode: 'https://api.trongrid.io',
-    solidityNode: 'https://api.trongrid.io',
-    eventServer: 'https://api.trongrid.io',
-    name: 'Mainnet',
-  },
-  nile: {
-    fullNode: 'https://api.nileex.io',
-    solidityNode: 'https://api.nileex.io',
-    eventServer: 'https://api.nileex.io',
-    name: 'Nile Testnet',
-  }
-};
+const { compileContracts } = require('./utils/compile.cjs');
+const { networks, decodeErrorMessage } = require('./utils/common.cjs');
 
 async function main() {
   const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
@@ -62,84 +37,10 @@ async function main() {
 
   // =====================================================================
   //  Compile DEXVaultV1 + DEXVaultV2
-  //  (same source list as deployUups.cjs to avoid missing-dependency errors)
   // =====================================================================
-  console.log("Compiling DEXVaultV1 & DEXVaultV2...");
-  const contractFiles = {
-    "contracts/DEXVaultV1.sol": readFileSync(join(__dirname, '../contracts/DEXVaultV1.sol'), 'utf8'),
-    "contracts/mocks/DEXVaultV2.sol": readFileSync(join(__dirname, '../contracts/mocks/DEXVaultV2.sol'), 'utf8'),
-    "contracts/lib/IERC20.sol": readFileSync(join(__dirname, '../contracts/lib/IERC20.sol'), 'utf8'),
-
-    // OpenZeppelin – non-upgradeable
-    "@openzeppelin/contracts/utils/cryptography/EIP712.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/ECDSA.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/ECDSA.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ShortStrings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ShortStrings.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC5267.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC5267.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Strings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Strings.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/StorageSlot.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/StorageSlot.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/Math.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/Math.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SafeCast.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SignedMath.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Panic.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Panic.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ReentrancyGuard.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol'), 'utf8'),
-    "@openzeppelin/contracts/token/ERC20/IERC20.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol'), 'utf8'),
-    "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol'), 'utf8'),
-    "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Address.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Address.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/draft-IERC1822.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/draft-IERC1822.sol'), 'utf8'),
-    "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol'), 'utf8'),
-    "@openzeppelin/contracts/proxy/beacon/IBeacon.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/proxy/beacon/IBeacon.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC1967.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC1967.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC1363.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC1363.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC20.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC20.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC165.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC165.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Errors.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Errors.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/introspection/IERC165.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol'), 'utf8'),
-
-    // OpenZeppelin – upgradeable
-    "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol'), 'utf8'),
-    "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol'), 'utf8'),
-  };
-
-  const input = {
-    language: 'Solidity',
-    sources: Object.keys(contractFiles).reduce((acc, file) => {
-      acc[file] = { content: contractFiles[file] };
-      return acc;
-    }, {}),
-    settings: {
-      optimizer: { enabled: true, runs: 200 },
-      outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } },
-      evmVersion: 'istanbul'
-    },
-  };
-
-  const compiledOutput = JSON.parse(solc.compile(JSON.stringify(input)));
-  if (compiledOutput.errors) {
-    compiledOutput.errors.forEach(err => {
-      if (err.type === 'Warning') console.warn(err.formattedMessage);
-      else { console.error(err.formattedMessage); throw new Error("Compilation failed."); }
-    });
-  }
-
-  function getArtifact(name) {
-    const solFile = `${name}.sol`;
-    const path = Object.keys(compiledOutput.contracts).find(p => p.endsWith(solFile));
-    if (!path || !compiledOutput.contracts[path][name]) throw new Error(`Missing artifact: ${name}`);
-    return {
-      abi: compiledOutput.contracts[path][name].abi,
-      bytecode: `0x${compiledOutput.contracts[path][name].evm.bytecode.object}`,
-    };
-  }
-
-  const DEXVaultV1Artifact = getArtifact('DEXVaultV1');
-  const DEXVaultV2Artifact = getArtifact('DEXVaultV2');
-  console.log("Compilation successful.\n");
+  const artifacts = compileContracts(['core', 'vault', 'vaultV2']);
+  const DEXVaultV1Artifact = artifacts.DEXVaultV1;
+  const DEXVaultV2Artifact = artifacts.DEXVaultV2;
 
   // =====================================================================
   //  Step 1: Verify current state BEFORE upgrade

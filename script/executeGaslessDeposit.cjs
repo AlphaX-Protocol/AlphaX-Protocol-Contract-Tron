@@ -1,44 +1,12 @@
 const { readFileSync } = require('fs');
 const { join } = require('path');
 const { TronWeb } = require('tronweb');
-const solc = require('solc'); // Import standard solc
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs'); // Import the utility function
-
-const networks = {
-  mainnet: {
-    fullNode: 'https://api.trongrid.io',
-    solidityNode: 'https://api.trongrid.io',
-    eventServer: 'https://api.trongrid.io',
-    chainId: 728126428,
-    name: 'Mainnet'
-  },
-  nile: {
-    fullNode: 'https://api.nileex.io',
-    solidityNode: 'https://api.nileex.io',
-    eventServer: 'https://api.nileex.io',
-    chainId: 3448148188,
-    name: 'Nile Testnet'
-  }
-};
-
-/**
- * 将 TRON 地址转换为合约期望的 20 字节标准 Hex
- */
-function toStandardHex(tronWeb, address) {
-    // 1. 获取 Hex (通常是 41... 格式)
-    let hex = tronWeb.address.toHex(address); 
-    
-    // 2. 移除 41 前缀 (如果存在)
-    // 注意：有些工具返回的 hex 已经带了 0x，有些没带。这里做健壮性处理。
-    if (hex.startsWith('0x')) hex = hex.slice(2);
-    if (hex.startsWith('41')) hex = hex.slice(2);
-    
-    // 3. 返回以 0x 开头的 20 字节格式
-    return "0x" + hex;
-}
+const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('./utils/compile.cjs');
+const { networks, toStandardHex } = require('./utils/common.cjs');
 
 async function main() {
   // --- Configuration ---
@@ -101,90 +69,7 @@ async function main() {
   console.log("DEX Vault address:", DEX_VAULT_ADDRESS);
 
   // --- Compile Contracts ---
-  console.log("Compiling contracts for ABI...");
-  const contractNames = ["GasFreeController", "GasFreeFactory", "IERC20", "GasFreeAccount"];
-  const contractFiles = {
-    // Local project files
-    "contracts/GasFreeController.sol": readFileSync(join(__dirname, '../contracts/GasFreeController.sol'), 'utf8'),
-    "contracts/GasFreeFactory.sol": readFileSync(join(__dirname, '../contracts/GasFreeFactory.sol'), 'utf8'),
-    "contracts/lib/IERC20.sol": readFileSync(join(__dirname, '../contracts/lib/IERC20.sol'), 'utf8'),
-    "contracts/interfaces/IGasFreeAccount.sol": readFileSync(join(__dirname, '../contracts/interfaces/IGasFreeAccount.sol'), 'utf8'),
-    "contracts/interfaces/IGasFreeFactory.sol": readFileSync(join(__dirname, '../contracts/interfaces/IGasFreeFactory.sol'), 'utf8'),
-    "contracts/GasFreeAccount.sol": readFileSync(join(__dirname, '../contracts/GasFreeAccount.sol'), 'utf8'),
-
-    // OpenZeppelin dependencies with virtual paths
-    "@openzeppelin/contracts/utils/cryptography/EIP712.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/ECDSA.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/ECDSA.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ShortStrings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ShortStrings.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC5267.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC5267.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Strings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Strings.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/StorageSlot.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/StorageSlot.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/Math.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/Math.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SafeCast.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SignedMath.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Panic.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Panic.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ReentrancyGuard.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol'), 'utf8')
-  };
-
-  const input = {
-    language: 'Solidity',
-    sources: Object.keys(contractFiles).reduce((acc, file) => {
-      acc[file] = { content: contractFiles[file] };
-      return acc;
-    }, {}),
-    settings: {
-        optimizer: {
-            enabled: true,
-            runs: 200,
-        },
-        outputSelection: {
-            '*': {
-                '*': ['abi', 'evm.bytecode.object'],
-            },
-        },
-        evmVersion: 'istanbul'
-    },
-  };
-
-  const compiledOutput = JSON.parse(solc.compile(JSON.stringify(input)));
-
-  if (compiledOutput.errors) {
-    let hasError = false;
-    compiledOutput.errors.forEach(err => {
-      if (err.type === 'Warning') {
-        console.warn(err.formattedMessage);
-      } else {
-        console.error(err.formattedMessage);
-        hasError = true;
-      }
-    });
-    if (hasError) {
-        throw new Error("Solidity compilation failed.");
-    }
-  }
-
-  const contractPathMap = {
-    "GasFreeController": "contracts/GasFreeController.sol",
-    "GasFreeFactory": "contracts/GasFreeFactory.sol",
-    "IERC20": "contracts/lib/IERC20.sol",
-    "GasFreeAccount": "contracts/GasFreeAccount.sol",
-  };
-
-  const artifacts = {};
-  for (const name of contractNames) {
-    const filePath = contractPathMap[name];
-    if (!filePath) {
-      throw new Error(`Mapping missing for contract: ${name}. Please add it to contractPathMap.`);
-    }
-    if (!compiledOutput.contracts[filePath] || !compiledOutput.contracts[filePath][name]) {
-        throw new Error(`Compilation output missing for contract: ${name} at path ${filePath}`);
-    }
-    artifacts[name] = {
-      abi: compiledOutput.contracts[filePath][name].abi,
-    };
-  }
-  console.log("Contracts compiled successfully.");
+  const artifacts = compileContracts(['core']);
 
 
   // --- Attach to Controller Contract ---
