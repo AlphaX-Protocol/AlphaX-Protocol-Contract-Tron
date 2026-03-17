@@ -51,3 +51,19 @@ node script/executeGaslessTransfer.cjs
 # Deposit
 node script/executeGaslessDeposit.cjs
 ```
+
+### 6. uups 
+```bash
+
+# deploy uups vault
+node script/deployUups.cjs
+
+# Deposit usdt
+node script/executeGaslessDepositUups.cjs
+
+# Deposit trx
+node script/executeGaslessDepositTrxUups.cjs
+
+
+```
+
