@@ -31,39 +31,20 @@ RECIPIENT_ADDRESS=target_wallet_address
 Deploy the Factory and Controller contracts to the Nile Testnet:
 
 ```bash
-node script/deploy.cjs
+node script/deployUups.cjs
 ```
 
-This will create a `deployed-addresses.nile.json` file (or based on your `NETWORK` setting) with the contract addresses.
+This will create a `deployed-addresses-uups.nile.json` file (or based on your `NETWORK` setting) with the contract addresses.
 
-### 4. prepare USDT
 
-transfer enough USDT to GasFreeAccount contract (address is in `deployed-addresses.<network>.json`)
-
-### 5. Execute Gasless Transfer / Deposit
+### 4. Execute Gasless  / Deposit
 
 Run the script to sign a permit and execute the transfer via the Relayer:
 
 ```bash
-# Transfer
-node script/executeGaslessTransfer.cjs
-
-# Deposit
-node script/executeGaslessDeposit.cjs
-```
-
-### 6. uups 
-```bash
-
-# deploy uups vault
-node script/deployUups.cjs
-
 # Deposit usdt
 node script/executeGaslessDepositUups.cjs
 
 # Deposit trx
 node script/executeGaslessDepositTrxUups.cjs
-
-
 ```
-
