@@ -4,9 +4,9 @@ const { join } = require('path');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-const { compileContracts } = require('./utils/compile.cjs');
-const { networks } = require('./utils/common.cjs');
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('../utils/compile.cjs');
+const { networks } = require('../utils/common.cjs');
 
 async function main() {
   // --- Configuration ---
@@ -29,7 +29,7 @@ async function main() {
   }
 
   // --- Load Deployed Addresses ---
-  const deployedAddressesPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedAddressesPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   let deployedAddresses;
   try {
     deployedAddresses = JSON.parse(readFileSync(deployedAddressesPath, 'utf8'));

@@ -4,9 +4,9 @@ const { TronWeb } = require('tronweb');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-const { compileContracts } = require('./utils/compile.cjs');
-const { networks, toStandardHex } = require('./utils/common.cjs');
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('../utils/compile.cjs');
+const { networks, toStandardHex } = require('../utils/common.cjs');
 
 /** TRX = address(0) for permit */
 const ADDRESS_ZERO = '0x0000000000000000000000000000000000000000';
@@ -29,7 +29,7 @@ async function main() {
     process.exit(1);
   }
 
-  const deployedPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   let deployedAddresses;
   try {
     deployedAddresses = JSON.parse(readFileSync(deployedPath, 'utf8'));

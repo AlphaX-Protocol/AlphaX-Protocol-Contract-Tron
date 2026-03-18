@@ -4,9 +4,9 @@ const { join } = require('path');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-const { compileContracts } = require('./utils/compile.cjs');
-const { networks, decodeErrorMessage } = require('./utils/common.cjs');
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('../utils/compile.cjs');
+const { networks, decodeErrorMessage } = require('../utils/common.cjs');
 
 async function main() {
   const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
@@ -25,7 +25,7 @@ async function main() {
   console.log(`Using account: ${deployerAddress} on ${networkConfig.name}\n`);
 
   // --- Load deployed addresses ---
-  const addrFile = join(__dirname, `../deployed-addresses-uups.${NETWORK}.json`);
+  const addrFile = join(__dirname, `../../deployed-addresses-uups.${NETWORK}.json`);
   if (!existsSync(addrFile)) {
     throw new Error(`Deployed addresses file not found: ${addrFile}\nRun deployUups.cjs first.`);
   }

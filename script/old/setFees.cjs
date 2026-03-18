@@ -4,8 +4,8 @@ const { TronWeb } = require('tronweb');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-const { networks } = require('./utils/common.cjs');
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { networks } = require('../utils/common.cjs');
 
 /** Minimal ABI for GasFreeController fee getters and setter */
 const CONTROLLER_ABI = [
@@ -71,7 +71,7 @@ async function main() {
 
   const deployerAddress = tronWeb.address.fromPrivateKey(DEPLOYER_PRIVATE_KEY);
 
-  const deployedPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   let deployed;
   try {
     deployed = JSON.parse(readFileSync(deployedPath, 'utf8'));

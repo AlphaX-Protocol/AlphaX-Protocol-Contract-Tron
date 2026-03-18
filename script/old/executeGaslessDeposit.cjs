@@ -4,13 +4,13 @@ const { TronWeb } = require('tronweb');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs'); // Import the utility function
-const { compileContracts } = require('./utils/compile.cjs');
-const { networks, toStandardHex } = require('./utils/common.cjs');
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('../utils/compile.cjs');
+const { networks, toStandardHex } = require('../utils/common.cjs');
 
 async function main() {
   // --- Configuration ---
-  const USER_PRIVATE_KEY = process.env.USER_PRIVATE_KEY;
+  const USER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
   const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY; // Relayer's private key
   const RECIPIENT_ADDRESS = process.env.RECIPIENT_ADDRESS;
   const NETWORK = process.env.NETWORK || 'nile';
@@ -26,7 +26,7 @@ async function main() {
   }
 
   // --- Load Deployed Addresses ---
-  const deployedAddressesPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedAddressesPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   let deployedAddresses;
   try {
     deployedAddresses = JSON.parse(readFileSync(deployedAddressesPath, 'utf8'));
@@ -38,10 +38,11 @@ async function main() {
   }
 
   const GAS_FREE_CONTROLLER_ADDRESS = deployedAddresses.controllerAddress;
-  const USDT_ADDRESS = deployedAddresses.nileUsdtAddress; // Use the fixed Nile USDT address from JSON
+  const USDT_ADDRESS = deployedAddresses.nileUsdtAddress;
+  const DEX_VAULT_ADDRESS = deployedAddresses.dexVaultAddress;
 
-  if (!GAS_FREE_CONTROLLER_ADDRESS || !USDT_ADDRESS) {
-    console.error("Missing one or more contract addresses in deployed-addresses.json: controllerAddress, nileUsdtAddress.");
+  if (!GAS_FREE_CONTROLLER_ADDRESS || !USDT_ADDRESS || !DEX_VAULT_ADDRESS) {
+    console.error("Missing one or more contract addresses in deployed-addresses.json: controllerAddress, nileUsdtAddress, dexVaultAddress.");
     process.exit(1);
   }
 
@@ -65,6 +66,7 @@ async function main() {
 
   console.log("User wallet address:", userAddress);
   console.log(`Relayer wallet address: ${relayerAddress} on ${networkConfig.name}`);
+  console.log("DEX Vault address:", DEX_VAULT_ADDRESS);
 
   // --- Compile Contracts ---
   const artifacts = compileContracts(['core']);
@@ -80,10 +82,9 @@ async function main() {
 
   // 1. Fetch current nonce for the user's GasFreeAccount
   const nonce = await controller.nonces(userAddress).call();
-  console.log(`User's current nonce: ${Number(nonce)}`); // Nonce from TronWeb is BigNumber
+  console.log(`User's current nonce: ${Number(nonce)}`);
 
-  // 2. EIP-712 Domain (must match GasFreeController.sol)
-  // Tron chainId for Nile Testnet is 3448148188 (0xcd8690dc)
+  // 2. EIP-712 Domain
   const domain = {
     name: "GasFreeController",
     version: "V1.0.0",
@@ -91,7 +92,7 @@ async function main() {
     verifyingContract: GAS_FREE_CONTROLLER_ADDRESS,
   };
 
-  // 3. EIP-712 Types (must match GasFreeController.sol)
+  // 3. EIP-712 Types
   const types = {
     PermitTransfer: [
       { name: "token", type: "address" },
@@ -108,11 +109,10 @@ async function main() {
   };
 
   // 4. Message Data
-  const transferValue = tronWebUser.toSun('5', 6); // 5 USDT, assuming 6 decimals for TRC20
-  const maxFee = tronWebUser.toSun('0.2', 6); // Max fee user is willing to pay (0.2 USDT)
-  const deadline = Math.floor(Date.now() / 1000) + 3600; // 1 hour from now
+  const transferValue = tronWebUser.toSun('10', 6); // 10 USDT
+  const maxFee = tronWebUser.toSun('1', 6); // Max fee
+  const deadline = Math.floor(Date.now() / 1000) + 3600;
 
-  // Get the user's GasFreeAccount address from deployed-addresses.json
   const userGasFreeAccountAddress = deployedAddresses.userGasFreeAccountAddress;
 
   const message = {
@@ -128,23 +128,22 @@ async function main() {
     nonce: Number(nonce),
 };
 
-  console.log("\n--- User-side: Signing PermitTransfer ---");
+  console.log("\n--- User-side: Signing PermitTransfer (Deposit) ---");
   console.log("Message to sign:", JSON.stringify(message, null, 2));
 
   // 5. User signs the typed data
   const signature = tronWebUser.trx.signTypedData(domain, types, message, USER_PRIVATE_KEY);
   console.log("Generated Signature:", signature);
 
-  // --- Relayer-side: Execute PermitTransfer ---
+  // --- Relayer-side: Execute PermitDepositVault ---
 
-  console.log("\n--- Relayer-side: Executing PermitTransfer ---");
+  console.log("\n--- Relayer-side: Executing PermitDepositVault ---");
   console.log("User's predicted GasFreeAccount address:", userGasFreeAccountAddress);
 
 
-  // --- Check GasFreeAccount USDT balance --- (Requirement 3)
+  // --- Check GasFreeAccount USDT balance ---
   const usdt = tronWebRelayer.contract(IERC20Artifact.abi, USDT_ADDRESS);
   const gasFreeAccountBalance = await usdt.balanceOf(userGasFreeAccountAddress).call();
-  console.warn("\ngasFreeAccountBalance", gasFreeAccountBalance)
   const gasFreeAccountBalanceFormatted = tronWebRelayer.fromSun(gasFreeAccountBalance, 6);
 
   if (parseFloat(gasFreeAccountBalanceFormatted) < parseFloat(tronWebRelayer.fromSun(transferValue, 6))) {
@@ -156,7 +155,6 @@ async function main() {
   
   
     try {
-      // Convert message object to an ordered array for the 'permit' tuple, ensuring addresses are in hex format with '0x' prefix
       const permitArray = [
         toStandardHex(tronWebRelayer, message.token),
         toStandardHex(tronWebRelayer, message.serviceProvider),
@@ -174,13 +172,13 @@ async function main() {
           signatureHex = '0x' + signatureHex;
       }
   
-      console.log("Simulating executePermitTransfer call with triggerSmartContract...");
+      console.log("Simulating executePermitDepositVault call with triggerSmartContract...");
       let simulationResult = null;
       try {
         // 1. 预估 Energy 消耗
         let energyEstimate = await tronWebRelayer.transactionBuilder.estimateEnergy(
           GAS_FREE_CONTROLLER_ADDRESS,
-          "executePermitTransfer((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)",
+          "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)",
           {
             callValue: 0,
           },
@@ -191,25 +189,22 @@ async function main() {
           relayerAddress
         );
 
-        // Handle case where estimateEnergy returns an object (common in some TronWeb versions)
         if (typeof energyEstimate === 'object' && energyEstimate !== null) {
             energyEstimate = energyEstimate.energy_required || energyEstimate.energy_used || 0;
         }
 
         console.log(`\n🚀 Estimated Energy consumption: ${energyEstimate}`);
 
-        // 获取当前网络 Energy 价格 (Sun/Energy)，如果获取失败则默认使用 420
         const chainParams = await tronWebRelayer.trx.getChainParameters();
         const energyFeeParam = chainParams.find(p => p.key === 'getEnergyFee');
         const energyPrice = energyFeeParam ? Number(energyFeeParam.value) : 420;
 
-        // 根据预估 Energy * 1.2 * Energy 价格计算 feeLimit (单位: Sun)
         const dynamicFeeLimit = Math.floor(energyEstimate * 1.2 * energyPrice);
         console.log(`   Setting dynamic feeLimit: ${dynamicFeeLimit} Sun (${(dynamicFeeLimit / 1_000_000).toFixed(2)} TRX)\n`);
         
         simulationResult = await tronWebRelayer.transactionBuilder.triggerSmartContract(
           GAS_FREE_CONTROLLER_ADDRESS,
-          "executePermitTransfer((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)",
+          "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)",
           {
             callValue: 0,
             feeLimit: dynamicFeeLimit,
@@ -238,44 +233,36 @@ async function main() {
         process.exit(1);
       }
 
-      // 2. 对交易对象进行私钥签名
-      // 注意：这里的 transaction 对象包含在 transaction.transaction 属性中
       const signedTransaction = await tronWebRelayer.trx.sign(
           simulationResult.transaction, 
           DEPLOYER_PRIVATE_KEY
       );
 
-      // 3. 广播交易到网络
       const broadcastResult = await tronWebRelayer.trx.sendRawTransaction(signedTransaction);
 
       if (broadcastResult.result) {
           console.log("✅ 交易广播成功！TxID:", broadcastResult.txid);
-          
-          // 4. 等待确认
           await waitforTxConfirmation(tronWebRelayer, broadcastResult.txid);
       } else {
-          // 如果广播失败，通常是代码逻辑没问题，但网络拒绝（如 Nonce 冲突或余额不足）
           console.error("❌ 广播失败:", tronWebRelayer.toUtf8(broadcastResult.message));
       }
   
       // Verify balances
       const userGasFreeAccountBalanceAfter = await usdt.balanceOf(userGasFreeAccountAddress).call();
-      const recipientBalance = await usdt.balanceOf(RECIPIENT_ADDRESS).call();
+      const vaultBalance = await usdt.balanceOf(DEX_VAULT_ADDRESS).call();
       const relayerBalance = await usdt.balanceOf(relayerAddress).call();
   
-      console.log(`\n--- Balances After Transfer ---`);
+      console.log(`\n--- Balances After Deposit ---`);
       console.log(`User's GasFreeAccount balance: ${tronWebRelayer.fromSun(userGasFreeAccountBalanceAfter, 6)} USDT`);
-      console.log(`Recipient (${RECIPIENT_ADDRESS}) balance: ${tronWebRelayer.fromSun(recipientBalance, 6)} USDT`);
+      console.log(`DEX Vault (${DEX_VAULT_ADDRESS}) balance: ${tronWebRelayer.fromSun(vaultBalance, 6)} USDT`);
       console.log(`Relayer (${relayerAddress}) balance: ${tronWebRelayer.fromSun(relayerBalance, 6)} USDT (includes fees)`);
   
     } catch (error) {
-      console.error("Error executing PermitTransfer:", error);
-      // Attempt to extract revert reason if available
+      console.error("Error executing PermitDepositVault:", error);
       if (error.reason) {
           console.error("Revert Reason:", error.reason);
       }
       if (error.message && error.message.includes("revert")) {
-          // More generic catch for revert messages
           console.error("Raw Error Message:", error.message);
       }
       process.exit(1);

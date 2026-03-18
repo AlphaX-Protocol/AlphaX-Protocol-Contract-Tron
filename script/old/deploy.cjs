@@ -4,9 +4,9 @@ const { join } = require('path');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-const { compileContracts } = require('./utils/compile.cjs');
-const { networks, decodeErrorMessage } = require('./utils/common.cjs');
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('../utils/compile.cjs');
+const { networks, decodeErrorMessage } = require('../utils/common.cjs');
 
 async function main() {
   const DEPLOYER_PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY;
@@ -258,7 +258,7 @@ async function main() {
     nileUsdtAddress: usdtAddress, // Keep key for compatibility
     dexVaultAddress: dexVaultAddress
   };
-  const deployedAddressesPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedAddressesPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   writeFileSync(deployedAddressesPath, JSON.stringify(deployedAddresses, null, 2), 'utf8');
   console.log(`Deployed addresses saved to ${deployedAddressesPath}`);
 
