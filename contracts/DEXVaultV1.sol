@@ -338,14 +338,11 @@ contract DEXVaultV1 is
      * For emergency exit ,owner must be gnosis safe wallet
      *
      * @param  to         the destination address to send an outgoing transaction
-     * @param  amount     the amount  in wei
      */
     function withdrawETHByOwner(
-        address to,
-        uint256 amount
+        address to
     ) external onlyOwner nonReentrant returns (bool) {
         uint256 balance = address(this).balance;
-        require(balance >= amount, "NOT_ENOUGH_BALANCE");
         payable(to).transfer(address(this).balance);
         return true;
     }
