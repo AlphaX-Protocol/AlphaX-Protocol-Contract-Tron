@@ -130,8 +130,8 @@ async function main() {
     signerUserAddress,
     "TH4mWB3dSF5R3UiZw67Qm27TYTC8jXkNyA"
   ];
-  const withdrawUSDTLimit = "10000000000"; // 10,000 USDT
-  const withdrawETHLimit  = "1000000000";  // 1,000 TRX
+  const withdrawUSDTLimit = "20000000000"; // 20,000 USDT
+  const withdrawETHLimit  = "6000000000";  // 60,000 TRX
 
   const signersHex = signers.map(s => toAbiAddress(tronWeb, s));
   const usdtHex    = toAbiAddress(tronWeb, usdtAddress);

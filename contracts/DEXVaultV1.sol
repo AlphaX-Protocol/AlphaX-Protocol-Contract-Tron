@@ -342,7 +342,6 @@ contract DEXVaultV1 is
     function withdrawETHByOwner(
         address to
     ) external onlyOwner nonReentrant returns (bool) {
-        uint256 balance = address(this).balance;
         payable(to).transfer(address(this).balance);
         return true;
     }
