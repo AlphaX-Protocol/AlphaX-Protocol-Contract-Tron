@@ -39,6 +39,7 @@ async function executeDeposit(label, {
       { name: "serviceProvider", type: "address" },
       { name: "user", type: "address" },
       { name: "receiver", type: "address" },
+      { name: "gasFreeAddress", type: "address" },
       { name: "value", type: "uint256" },
       { name: "maxFee", type: "uint256" },
       { name: "deadline", type: "uint256" },
@@ -56,6 +57,7 @@ async function executeDeposit(label, {
     serviceProvider: toStandardHex(tronWebUser, relayerAddress),
     user: toStandardHex(tronWebUser, userAddress),
     receiver: toStandardHex(tronWebUser, RECIPIENT_ADDRESS),
+    gasFreeAddress: toStandardHex(tronWebUser, userGasFreeAccountAddress),
     value: transferValue.toString(),
     maxFee: maxFee.toString(),
     deadline: deadline,
@@ -83,6 +85,7 @@ async function executeDeposit(label, {
     toStandardHex(tronWebRelayer, message.serviceProvider),
     toStandardHex(tronWebRelayer, message.user),
     toStandardHex(tronWebRelayer, message.receiver),
+    toStandardHex(tronWebRelayer, userGasFreeAccountAddress),
     message.value,
     message.maxFee,
     message.deadline,
@@ -92,11 +95,10 @@ async function executeDeposit(label, {
   let signatureHex = signature;
   if (!signatureHex.startsWith('0x')) signatureHex = '0x' + signatureHex;
 
-  const funcSig = "executePermitDepositVault((address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes,address)";
+  const funcSig = "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)";
   const funcParams = [
-    { type: '(address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+    { type: '(address,address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
     { type: 'bytes', value: signatureHex },
-    { type: 'address', value: userGasFreeAccountAddress }
   ];
 
   let energyEstimate = await tronWebRelayer.transactionBuilder.estimateEnergy(

@@ -99,6 +99,7 @@ async function main() {
       { name: "serviceProvider", type: "address" },
       { name: "user", type: "address" },
       { name: "receiver", type: "address" },
+      { name: "gasFreeAddress", type: "address" },
       { name: "value", type: "uint256" },
       { name: "maxFee", type: "uint256" },
       { name: "deadline", type: "uint256" },
@@ -112,12 +113,14 @@ async function main() {
   const maxFee = tronWebUser.toSun('1', 6); // Max fee
   const deadline = Math.floor(Date.now() / 1000) + 3600;
 
+  const userGasFreeAccountAddress = deployedAddresses.userGasFreeAccountAddress;
+
   const message = {
     token: toStandardHex(tronWebUser, USDT_ADDRESS),
     serviceProvider: toStandardHex(tronWebUser, relayerAddress),
     user: toStandardHex(tronWebUser, userAddress),
-    receiver: toStandardHex(tronWebUser, RECIPIENT_ADDRESS), // Beneficiary in Vault
-    
+    receiver: toStandardHex(tronWebUser, RECIPIENT_ADDRESS),
+    gasFreeAddress: toStandardHex(tronWebUser, userGasFreeAccountAddress),
     value: transferValue.toString(), 
     maxFee: maxFee.toString(),     
     deadline: deadline,
@@ -135,8 +138,6 @@ async function main() {
   // --- Relayer-side: Execute PermitDepositVault ---
 
   console.log("\n--- Relayer-side: Executing PermitDepositVault ---");
-
-  const userGasFreeAccountAddress = deployedAddresses.userGasFreeAccountAddress;
   console.log("User's predicted GasFreeAccount address:", userGasFreeAccountAddress);
 
 
@@ -159,6 +160,7 @@ async function main() {
         toStandardHex(tronWebRelayer, message.serviceProvider),
         toStandardHex(tronWebRelayer, message.user),
         toStandardHex(tronWebRelayer, message.receiver),
+        toStandardHex(tronWebRelayer, userGasFreeAccountAddress),
         message.value,
         message.maxFee,
         message.deadline,
@@ -176,14 +178,13 @@ async function main() {
         // 1. 预估 Energy 消耗
         let energyEstimate = await tronWebRelayer.transactionBuilder.estimateEnergy(
           GAS_FREE_CONTROLLER_ADDRESS,
-          "executePermitDepositVault((address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes,address)",
+          "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)",
           {
             callValue: 0,
           },
           [
-            { type: '(address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+            { type: '(address,address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
             { type: 'bytes', value: signatureHex },
-            { type: 'address', value: userGasFreeAccountAddress }
           ],
           relayerAddress
         );
@@ -203,15 +204,14 @@ async function main() {
         
         simulationResult = await tronWebRelayer.transactionBuilder.triggerSmartContract(
           GAS_FREE_CONTROLLER_ADDRESS,
-          "executePermitDepositVault((address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes,address)",
+          "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)",
           {
             callValue: 0,
             feeLimit: dynamicFeeLimit,
           },
           [
-            { type: '(address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+            { type: '(address,address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
             { type: 'bytes', value: signatureHex },
-            { type: 'address', value: userGasFreeAccountAddress }
           ],
           relayerAddress
         );
