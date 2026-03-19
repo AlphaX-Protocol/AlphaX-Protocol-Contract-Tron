@@ -1,8 +1,8 @@
 {
-  "factoryAddress": "TRnYToTZx3MYs7MFkjafCJDUwkc3JsrF1H",
-  "controllerAddress": "TKGf7J9nnymrr4WdY8Lz2W25cnqczu7CBb",
-  "userGasFreeAccountAddress": "TDKJ2x9Xtj1k3JMLW7bQ7CYMiUu2SpagcK",
+  "factoryAddress": "TZ4mxQALb6v54YVTDGU2gsMUYvoDPPDMM2",
+  "controllerAddress": "TABikV2J959mrGx5DeecwzNMuCY6fuC65A",
+  "userGasFreeAccountAddress": "TCmN26pt4bEQ7t8xAjgRZGZTdG3sd9g5Vd",
   "nileUsdtAddress": "TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf",
-  "dexVaultProxy": "TUEFA2QujRcfzF1J2GmQvqB67XUubducny",
-  "dexVaultImplementation": "TWyPHupu1G996BKh924iMt4v1teAAXGx3E"
+  "dexVaultProxy": "TUnnZGtnruyYZ73TfmRgu3srBpCFukx6sU",
+  "dexVaultImplementation": "TNQu1GZd6D7Vmd42sAbr7fyMKQpCdtjpDA"
 }

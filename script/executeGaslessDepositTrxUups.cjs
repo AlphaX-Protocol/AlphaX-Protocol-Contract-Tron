@@ -94,12 +94,14 @@ async function main() {
   const nonce = await controller.nonces(userAddress).call();
   console.log("User's nonce:", Number(nonce));
 
+  const firstTime = process.env.FIRST_TIME_DEPOSIT === 'true';
   const transferFeeTRX = await controller.transferFeeTRX().call();
-  const maxFeeSun = transferFeeTRX.toString();
-  console.log('Transfer fee TRX:', maxFeeSun);
+  const activateFee = firstTime ? await controller.activateFee().call() : 0;
+  const maxFeeSun = (BigInt(transferFeeTRX.toString()) + BigInt(activateFee.toString())).toString();
+  console.log('Transfer fee TRX:', transferFeeTRX.toString(), firstTime ? `+ activateFee ${activateFee}` : '');
   const depositValueSun = tronWebUser.toSun(TRX_DEPOSIT_AMOUNT);
   const totalCostSun = BigInt(depositValueSun) + BigInt(maxFeeSun);
-  console.log('Total cost TRX:', totalCostSun);
+  console.log('Total cost TRX:', totalCostSun.toString());
 
   const domain = {
     name: 'GasFreeController',
@@ -114,6 +116,7 @@ async function main() {
       { name: 'user', type: 'address' },
       { name: 'receiver', type: 'address' },
       { name: 'gasFreeAddress', type: 'address' },
+      { name: 'firstTime', type: 'bool' },
       { name: 'value', type: 'uint256' },
       { name: 'maxFee', type: 'uint256' },
       { name: 'deadline', type: 'uint256' },
@@ -128,6 +131,7 @@ async function main() {
     user: toStandardHex(tronWebUser, userAddress),
     receiver: toStandardHex(tronWebUser, RECIPIENT_ADDRESS),
     gasFreeAddress: toStandardHex(tronWebUser, userGasFreeAccountAddress),
+    firstTime,
     value: depositValueSun.toString(),
     maxFee: maxFeeSun,
     deadline,
@@ -158,6 +162,7 @@ async function main() {
     toStandardHex(tronWebRelayer, userAddress),
     toStandardHex(tronWebRelayer, RECIPIENT_ADDRESS),
     toStandardHex(tronWebRelayer, userGasFreeAccountAddress),
+    message.firstTime,
     message.value,
     message.maxFee,
     message.deadline,
@@ -168,7 +173,7 @@ async function main() {
   console.log('\n--- Executing executePermitDepositVault (TRX → UUPS proxy) ---');
 
   const contractParams = [
-    { type: '(address,address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
     { type: 'bytes', value: signatureHex },
   ];
 
@@ -176,7 +181,7 @@ async function main() {
   try {
     const energyEstimate = await tronWebRelayer.transactionBuilder.estimateEnergy(
       GAS_FREE_CONTROLLER_ADDRESS,
-      'executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)',
+      'executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256),bytes)',
       { callValue: 0 },
       contractParams,
       relayerAddress
@@ -198,7 +203,7 @@ async function main() {
   try {
     simulationResult = await tronWebRelayer.transactionBuilder.triggerSmartContract(
       GAS_FREE_CONTROLLER_ADDRESS,
-      'executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)',
+      'executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256),bytes)',
       { callValue: 0, feeLimit },
       contractParams,
       relayerAddress

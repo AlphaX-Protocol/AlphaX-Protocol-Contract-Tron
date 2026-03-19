@@ -23,7 +23,7 @@ interface IDEXVault {
 contract GasFreeController is EIP712, ReentrancyGuard {
     /// @dev EIP712 type hash for the PermitTransfer struct.
     bytes32 private constant PERMIT_TRANSFER_TYPEHASH = keccak256(
-        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce)"
+        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,bool firstTime,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce)"
     );
 
     /// @dev Matches the structure in the GasFree documentation for signature verification.
@@ -33,6 +33,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         address user;
         address receiver;
         address gasFreeAddress;
+        bool firstTime;
         uint256 value;
         uint256 maxFee;
         uint256 deadline;
@@ -150,6 +151,9 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         nonces[permit.user]++;
         
         uint256 totalFee = transferFee;
+        if (permit.firstTime) {
+            totalFee += activateFee;
+        }
 
         require(permit.maxFee >= totalFee, "GasFreeController: maxFee exceeded");
 
@@ -188,6 +192,9 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         nonces[permit.user]++;
         
         uint256 totalFee = permit.token == address(0) ? transferFeeTRX : transferFee;
+        if (permit.firstTime) {
+            totalFee += activateFee;
+        }
 
         require(permit.maxFee >= totalFee, "GasFreeController: maxFee exceeded");
 
@@ -226,6 +233,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
             permit.user,
             permit.receiver,
             permit.gasFreeAddress,
+            permit.firstTime,
             permit.value,
             permit.maxFee,
             permit.deadline,
