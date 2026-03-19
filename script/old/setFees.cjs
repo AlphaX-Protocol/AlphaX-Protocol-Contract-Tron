@@ -12,6 +12,7 @@ const CONTROLLER_ABI = [
   {
     inputs: [
       { internalType: 'uint256', name: '_activateFee', type: 'uint256' },
+      { internalType: 'uint256', name: '_activateFeeTRX', type: 'uint256' },
       { internalType: 'uint256', name: '_transferFee', type: 'uint256' },
       { internalType: 'uint256', name: '_transferFeeTRX', type: 'uint256' }
     ],
@@ -23,6 +24,13 @@ const CONTROLLER_ABI = [
   {
     inputs: [],
     name: 'activateFee',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
+    inputs: [],
+    name: 'activateFeeTRX',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function'
@@ -88,11 +96,11 @@ async function main() {
 
   console.log(`Controller: ${controllerAddress}`);
   console.log(`Caller (owner): ${deployerAddress} on ${networkConfig.name}`);
-  console.log(`Setting activateFee and transferFee to 1 USDT (${ONE_USDT}), transferFeeTRX to 1 TRX (${ONE_TRX_SUN} sun)...`);
+  console.log(`Setting activateFee/activateFeeTRX and transferFee/transferFeeTRX (1 USDT / 1 TRX)...`);
 
   const controller = tronWeb.contract(CONTROLLER_ABI, controllerAddress);
 
-  const setFeesTxId = await controller.setFees(ONE_USDT, ONE_USDT, ONE_TRX_SUN).send({
+  const setFeesTxId = await controller.setFees(ONE_USDT, ONE_TRX_SUN, ONE_USDT, ONE_TRX_SUN).send({
     feeLimit: 100_000_000,
     callValue: 0,
     shouldPollResponse: false
@@ -101,12 +109,14 @@ async function main() {
   await waitforTxConfirmation(tronWeb, setFeesTxId);
   console.log('setFees transaction confirmed:', setFeesTxId);
 
-  const [activateFee, transferFee, transferFeeTRX] = await Promise.all([
+  const [activateFee, activateFeeTRX, transferFee, transferFeeTRX] = await Promise.all([
     controller.activateFee().call(),
+    controller.activateFeeTRX().call(),
     controller.transferFee().call(),
     controller.transferFeeTRX().call()
   ]);
-  console.log('Current activateFee:', activateFee.toString());
+  console.log('Current activateFee (USDT):', activateFee.toString());
+  console.log('Current activateFeeTRX (sun):', activateFeeTRX.toString());
   console.log('Current transferFee:', transferFee.toString());
   console.log('Current transferFeeTRX:', transferFeeTRX.toString(), '(sun)');
   console.log('Done.');

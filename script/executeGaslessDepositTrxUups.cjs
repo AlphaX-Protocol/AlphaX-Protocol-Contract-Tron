@@ -94,11 +94,11 @@ async function main() {
   const nonce = await controller.nonces(userAddress).call();
   console.log("User's nonce:", Number(nonce));
 
-  const firstTime = process.env.FIRST_TIME_DEPOSIT === 'true';
+  const firstTime = true;
   const transferFeeTRX = await controller.transferFeeTRX().call();
-  const activateFee = firstTime ? await controller.activateFee().call() : 0;
-  const maxFeeSun = (BigInt(transferFeeTRX.toString()) + BigInt(activateFee.toString())).toString();
-  console.log('Transfer fee TRX:', transferFeeTRX.toString(), firstTime ? `+ activateFee ${activateFee}` : '');
+  const activateFeeTRX = firstTime ? await controller.activateFeeTRX().call() : 0;
+  const maxFeeSun = (BigInt(transferFeeTRX.toString()) + BigInt(activateFeeTRX.toString())).toString();
+  console.log('Transfer fee TRX:', transferFeeTRX.toString(), firstTime ? `+ activateFeeTRX ${activateFeeTRX}` : '');
   const depositValueSun = tronWebUser.toSun(TRX_DEPOSIT_AMOUNT);
   const totalCostSun = BigInt(depositValueSun) + BigInt(maxFeeSun);
   console.log('Total cost TRX:', totalCostSun.toString());

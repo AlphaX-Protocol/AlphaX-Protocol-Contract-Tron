@@ -53,8 +53,11 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     /// @notice The owner of the controller, who can set fees.
     address public owner;
     
-    /// @notice The fee (in token units) for activating a new account.
+    /// @notice The fee (in token units) for activating a new account (TRC20/USDT).
     uint256 public activateFee;
+
+    /// @notice The fee (in sun) for activating a new account (TRX).
+    uint256 public activateFeeTRX;
 
     /// @notice The fee (in token units) for each TRC20 transfer.
     uint256 public transferFee;
@@ -63,7 +66,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     uint256 public transferFeeTRX;
 
     event OwnerUpdated(address indexed newOwner);
-    event FeesUpdated(uint256 activateFee, uint256 transferFee, uint256 transferFeeTRX);
+    event FeesUpdated(uint256 activateFee, uint256 activateFeeTRX, uint256 transferFee, uint256 transferFeeTRX);
     event VaultUpdated(address indexed oldVault, address indexed newVault);
     event TransferExecuted(
         address indexed user,
@@ -91,16 +94,18 @@ contract GasFreeController is EIP712, ReentrancyGuard {
 
     /**
      * @notice Sets the fees for activation and transfers.
-     * @dev activateFee/transferFee in token smallest units; transferFeeTRX in sun.
-     * @param _activateFee The new fee for account activation.
+     * @dev activateFee/transferFee in token smallest units; activateFeeTRX/transferFeeTRX in sun.
+     * @param _activateFee The new fee for account activation (TRC20, in token units).
+     * @param _activateFeeTRX The new fee for account activation (TRX, in sun).
      * @param _transferFee The new fee for each TRC20 transfer.
      * @param _transferFeeTRX The new fee (in sun) for each TRX transfer/deposit.
      */
-    function setFees(uint256 _activateFee, uint256 _transferFee, uint256 _transferFeeTRX) external onlyOwner {
+    function setFees(uint256 _activateFee, uint256 _activateFeeTRX, uint256 _transferFee, uint256 _transferFeeTRX) external onlyOwner {
         activateFee = _activateFee;
+        activateFeeTRX = _activateFeeTRX;
         transferFee = _transferFee;
         transferFeeTRX = _transferFeeTRX;
-        emit FeesUpdated(_activateFee, _transferFee, _transferFeeTRX);
+        emit FeesUpdated(_activateFee, _activateFeeTRX, _transferFee, _transferFeeTRX);
     }
     
     function transferOwnership(address newOwner) external onlyOwner {
@@ -193,7 +198,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         
         uint256 totalFee = permit.token == address(0) ? transferFeeTRX : transferFee;
         if (permit.firstTime) {
-            totalFee += activateFee;
+            totalFee += permit.token == address(0) ? activateFeeTRX : activateFee;
         }
 
         require(permit.maxFee >= totalFee, "GasFreeController: maxFee exceeded");
