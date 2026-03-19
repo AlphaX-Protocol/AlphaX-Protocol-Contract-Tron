@@ -313,7 +313,7 @@ contract DEXVaultV1 is
 
         dailyWithdrawals[token] += amount;
         // Success, send ERC20 token
-        IERC20(token).safeTransfer(to, amount);
+        _transferERC20Out(token, to, amount);
         emit Withdraw(owner, msg.sender, to, token, amount, requestId);
     }
 
@@ -330,7 +330,7 @@ contract DEXVaultV1 is
     ) external onlyOwner nonReentrant returns (bool) {
         uint256 balance = IERC20(token).balanceOf(address(this));
         require(balance >= amount, "NOT_ENOUGH_BALANCE");
-        IERC20(token).safeTransfer(to, amount);
+        _transferERC20Out(token, to, amount);
         return true;
     }
 
@@ -342,7 +342,8 @@ contract DEXVaultV1 is
     function withdrawETHByOwner(
         address to
     ) external onlyOwner nonReentrant returns (bool) {
-        payable(to).transfer(address(this).balance);
+        (bool success, ) = payable(to).call{value: address(this).balance}("");
+        require(success, "ETH transfer failed");
         return true;
     }
 
@@ -549,5 +550,13 @@ contract DEXVaultV1 is
         IERC20(token).safeTransferFrom(owner, address(this), amount);
 
         emit Deposit(owner, owner, token, amount);
+    }
+
+    /// @dev Low-level ERC20 transfer that tolerates non-standard tokens returning false on success.
+    function _transferERC20Out(address token, address to, uint256 amount) internal {
+        (bool success, ) = token.call(
+            abi.encodeWithSelector(IERC20.transfer.selector, to, amount)
+        );
+        require(success, "ERC20 transfer failed");
     }
 }
