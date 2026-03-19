@@ -4,22 +4,8 @@ const { TronWeb } = require('tronweb');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-
-const networks = {
-  mainnet: {
-    fullNode: 'https://api.trongrid.io',
-    solidityNode: 'https://api.trongrid.io',
-    eventServer: 'https://api.trongrid.io',
-    name: 'Mainnet'
-  },
-  nile: {
-    fullNode: 'https://api.nileex.io',
-    solidityNode: 'https://api.nileex.io',
-    eventServer: 'https://api.nileex.io',
-    name: 'Nile Testnet'
-  }
-};
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { networks } = require('../utils/common.cjs');
 
 /** Minimal ABI for GasFreeController fee getters and setter */
 const CONTROLLER_ABI = [
@@ -85,7 +71,7 @@ async function main() {
 
   const deployerAddress = tronWeb.address.fromPrivateKey(DEPLOYER_PRIVATE_KEY);
 
-  const deployedPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   let deployed;
   try {
     deployed = JSON.parse(readFileSync(deployedPath, 'utf8'));

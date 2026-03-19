@@ -23,7 +23,7 @@ interface IDEXVault {
 contract GasFreeController is EIP712, ReentrancyGuard {
     /// @dev EIP712 type hash for the PermitTransfer struct.
     bytes32 private constant PERMIT_TRANSFER_TYPEHASH = keccak256(
-        "PermitTransfer(address token,address serviceProvider,address user,address receiver,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce)"
+        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce)"
     );
 
     /// @dev Matches the structure in the GasFree documentation for signature verification.
@@ -32,6 +32,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         address serviceProvider;
         address user;
         address receiver;
+        address gasFreeAddress;
         uint256 value;
         uint256 maxFee;
         uint256 deadline;
@@ -135,7 +136,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
      * @param permit The structured data containing transfer details.
      * @param signature The user's EIP712 signature for the permit.
      */
-    function executePermitTransfer(PermitTransfer calldata permit, bytes calldata signature, address gasFreeAddress) external nonReentrant {
+    function executePermitTransfer(PermitTransfer calldata permit, bytes calldata signature) external nonReentrant {
         require(permit.deadline >= block.timestamp, "GasFreeController: Permit expired");
         require(permit.token != address(0), "GasFreeController: Use TRC20 tokens only");
         bytes32 structHash = _hashPermit(permit);
@@ -144,28 +145,25 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         
         require(signer == permit.user && signer != address(0), "GasFreeController: Invalid signature");
         require(nonces[permit.user] == permit.nonce, "GasFreeController: Invalid nonce");
-        require(IGasFreeAccount(gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
+        require(IGasFreeAccount(permit.gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
         
         nonces[permit.user]++;
         
-        uint256 totalFee = transferFee; // Now only transferFee
+        uint256 totalFee = transferFee;
 
         require(permit.maxFee >= totalFee, "GasFreeController: maxFee exceeded");
 
-        // On-demand approval: If the token hasn't been approved by the account yet,
-        // the controller calls the account to approve itself.
-        if (!tokenApprovals[gasFreeAddress][permit.token]) {
-            IGasFreeAccount(gasFreeAddress).approveToken(permit.token);
-            tokenApprovals[gasFreeAddress][permit.token] = true;
+        if (!tokenApprovals[permit.gasFreeAddress][permit.token]) {
+            IGasFreeAccount(permit.gasFreeAddress).approveToken(permit.token);
+            tokenApprovals[permit.gasFreeAddress][permit.token] = true;
         }
         
         uint256 totalCost = permit.value + totalFee;
         IERC20 token = IERC20(permit.token);
-        require(token.balanceOf(gasFreeAddress) >= totalCost, "GasFreeController: Insufficient balance");
+        require(token.balanceOf(permit.gasFreeAddress) >= totalCost, "GasFreeController: Insufficient balance");
 
-        // Perform transfers
-        token.transferFrom(gasFreeAddress, permit.receiver, permit.value);
-        token.transferFrom(gasFreeAddress, permit.serviceProvider, totalFee);
+        token.transferFrom(permit.gasFreeAddress, permit.receiver, permit.value);
+        token.transferFrom(permit.gasFreeAddress, permit.serviceProvider, totalFee);
 
         emit TransferExecuted(permit.user, permit.serviceProvider, permit.token, permit.receiver, permit.value, totalFee);
     }
@@ -174,9 +172,8 @@ contract GasFreeController is EIP712, ReentrancyGuard {
      * @notice Verifies a user's signed permit and executes a deposit to the DEXVault.
      * @param permit The structured data containing transfer details.
      * @param signature The user's EIP712 signature for the permit.
-     * @param gasFreeAddress The user's GasFreeAccount address.
      */
-    function executePermitDepositVault(PermitTransfer calldata permit, bytes calldata signature, address gasFreeAddress) external nonReentrant {
+    function executePermitDepositVault(PermitTransfer calldata permit, bytes calldata signature) external nonReentrant {
         require(vault != address(0), "GasFreeController: vault not set");
         require(permit.deadline >= block.timestamp, "GasFreeController: Permit expired");
         
@@ -186,7 +183,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         
         require(signer == permit.user && signer != address(0), "GasFreeController: Invalid signature");
         require(nonces[permit.user] == permit.nonce, "GasFreeController: Invalid nonce");
-        require(IGasFreeAccount(gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
+        require(IGasFreeAccount(permit.gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
         
         nonces[permit.user]++;
         
@@ -197,20 +194,20 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         uint256 totalCost = permit.value + totalFee;
 
         if (permit.token == address(0)) {
-            require(gasFreeAddress.balance >= totalCost, "GasFreeController: Insufficient TRX balance");
-            IGasFreeAccount account = IGasFreeAccount(gasFreeAddress);
+            require(permit.gasFreeAddress.balance >= totalCost, "GasFreeController: Insufficient TRX balance");
+            IGasFreeAccount account = IGasFreeAccount(permit.gasFreeAddress);
             account.transferMainCoin(permit.serviceProvider, totalFee);
             account.transferMainCoin(address(this), permit.value);
             IDEXVault(vault).depositETH{value: permit.value}(permit.receiver);
         } else {
-            if (!tokenApprovals[gasFreeAddress][permit.token]) {
-                IGasFreeAccount(gasFreeAddress).approveToken(permit.token);
-                tokenApprovals[gasFreeAddress][permit.token] = true;
+            if (!tokenApprovals[permit.gasFreeAddress][permit.token]) {
+                IGasFreeAccount(permit.gasFreeAddress).approveToken(permit.token);
+                tokenApprovals[permit.gasFreeAddress][permit.token] = true;
             }
             IERC20 token = IERC20(permit.token);
-            require(token.balanceOf(gasFreeAddress) >= totalCost, "GasFreeController: Insufficient balance");
-            token.transferFrom(gasFreeAddress, permit.serviceProvider, totalFee);
-            token.transferFrom(gasFreeAddress, address(this), permit.value);
+            require(token.balanceOf(permit.gasFreeAddress) >= totalCost, "GasFreeController: Insufficient balance");
+            token.transferFrom(permit.gasFreeAddress, permit.serviceProvider, totalFee);
+            token.transferFrom(permit.gasFreeAddress, address(this), permit.value);
             token.approve(vault, permit.value);
             IDEXVault(vault).depositERC20(permit.token, permit.value, permit.receiver);
         }
@@ -228,6 +225,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
             permit.serviceProvider,
             permit.user,
             permit.receiver,
+            permit.gasFreeAddress,
             permit.value,
             permit.maxFee,
             permit.deadline,

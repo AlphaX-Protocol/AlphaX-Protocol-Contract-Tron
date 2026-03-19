@@ -1,26 +1,12 @@
 const { TronWeb } = require('tronweb');
 const { readFileSync } = require('fs');
 const { join } = require('path');
-const solc = require('solc');
 
 require('dotenv').config();
 
-const waitforTxConfirmation = require('./utils/waitforTxConfirmation.cjs');
-
-const networks = {
-  mainnet: {
-    fullNode: 'https://api.trongrid.io',
-    solidityNode: 'https://api.trongrid.io',
-    eventServer: 'https://api.trongrid.io',
-    name: 'Mainnet'
-  },
-  nile: {
-    fullNode: 'https://api.nileex.io',
-    solidityNode: 'https://api.nileex.io',
-    eventServer: 'https://api.nileex.io',
-    name: 'Nile Testnet'
-  }
-};
+const waitforTxConfirmation = require('../utils/waitforTxConfirmation.cjs');
+const { compileContracts } = require('../utils/compile.cjs');
+const { networks } = require('../utils/common.cjs');
 
 async function main() {
   // --- Configuration ---
@@ -43,7 +29,7 @@ async function main() {
   }
 
   // --- Load Deployed Addresses ---
-  const deployedAddressesPath = join(__dirname, `../deployed-addresses.${NETWORK}.json`);
+  const deployedAddressesPath = join(__dirname, `../../deployed-addresses.${NETWORK}.json`);
   let deployedAddresses;
   try {
     deployedAddresses = JSON.parse(readFileSync(deployedAddressesPath, 'utf8'));
@@ -71,57 +57,9 @@ async function main() {
 
 
   // --- Compile Contracts to get ABI for GasFreeController ---
-  console.log("Compiling contracts for ABI...");
-  const contractNames = ["GasFreeController", "GasFreeAccount", "GasFreeFactory"]; // Need Factory and Account ABI for Controller's interfaces
-  const contractFiles = {
-    // We need to compile all contracts to get the correct ABI for the controller and its interfaces
-    "contracts/GasFreeController.sol": readFileSync(join(__dirname, '../contracts/GasFreeController.sol'), 'utf8'),
-    "contracts/GasFreeFactory.sol": readFileSync(join(__dirname, '../contracts/GasFreeFactory.sol'), 'utf8'), // Needed for IGasFreeFactory
-    "contracts/GasFreeAccount.sol": readFileSync(join(__dirname, '../contracts/GasFreeAccount.sol'), 'utf8'), // Needed for IGasFreeAccount
-    "contracts/lib/IERC20.sol": readFileSync(join(__dirname, '../contracts/lib/IERC20.sol'), 'utf8'),
-    "contracts/interfaces/IGasFreeAccount.sol": readFileSync(join(__dirname, '../contracts/interfaces/IGasFreeAccount.sol'), 'utf8'),
-    "contracts/interfaces/IGasFreeFactory.sol": readFileSync(join(__dirname, '../contracts/interfaces/IGasFreeFactory.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/EIP712.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/EIP712.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/ECDSA.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/ECDSA.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/ShortStrings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/ShortStrings.sol'), 'utf8'),
-    "@openzeppelin/contracts/interfaces/IERC5267.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/interfaces/IERC5267.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Strings.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Strings.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/StorageSlot.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/StorageSlot.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/Math.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/Math.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SafeCast.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/math/SignedMath.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol'), 'utf8'),
-    "@openzeppelin/contracts/utils/Panic.sol": readFileSync(join(__dirname, '../node_modules/@openzeppelin/contracts/utils/Panic.sol'), 'utf8')
-  };
-
-  const input = {
-    language: 'Solidity',
-    sources: Object.keys(contractFiles).reduce((acc, file) => {
-      acc[file] = { content: contractFiles[file] };
-      return acc;
-    }, {}),
-    settings: {
-      optimizer: { enabled: true, runs: 200 },
-      outputSelection: { '*': { '*': ['abi'] } },
-      evmVersion: 'istanbul'
-    },
-  };
-
-  const compiledOutput = JSON.parse(solc.compile(JSON.stringify(input)));
-
-  if (compiledOutput.errors) {
-    compiledOutput.errors.forEach(err => {
-      if (err.type !== 'Warning') {
-        console.error(err.formattedMessage);
-        throw new Error("Solidity compilation failed.");
-      }
-    });
-  }
-  const GasFreeControllerArtifact = compiledOutput.contracts["contracts/GasFreeController.sol"].GasFreeController;
-  const gasFreeControllerAbi = GasFreeControllerArtifact.abi;
-  // 获取 GasFreeAccount 的 ABI 用于诊断
-  const GasFreeAccountArtifact = compiledOutput.contracts["contracts/GasFreeAccount.sol"].GasFreeAccount;
-
+  const artifacts = compileContracts(['core']);
+  const GasFreeControllerArtifact = artifacts.GasFreeController;
+  const GasFreeAccountArtifact = artifacts.GasFreeAccount;
 
   // --- Call approveTokenOnAccount on Controller ---
   try {
