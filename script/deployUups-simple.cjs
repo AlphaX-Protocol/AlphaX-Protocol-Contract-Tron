@@ -126,9 +126,9 @@ async function main() {
   // ========================================================================
   const signerUserAddress = USER_PRIVATE_KEY ? tronWeb.address.fromPrivateKey(USER_PRIVATE_KEY) : deployerAddress;
   const signers = [
-    "TZFgDSCDQcT6tMtHHSec37aaQY9XJSy8zB",
-    "TTcuMEfweu2bxLPgG3sNufQ7Rs81jcFA8P",
-    "TQ16ccZfrYUM4AF2YjfSsFsm1YhqSQTChi"
+    "TBCXtdouS5FS8WMjtz3yh5FqQkzojek4B6",
+    "TMyFVsd77vJ6Cv4LKwJeV7YLfRVF8JyerJ",
+    "TVca19k8rHwzTQEkCbn7Qpt8vTeaYZWZ7T"
   ];
   const withdrawUSDTLimit = "142000000000";   // 142,000 USDT
   const withdrawETHLimit  = "426000000000";   // 426,000 TRX
