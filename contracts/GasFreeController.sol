@@ -52,7 +52,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
 
     /// @notice The owner of the controller, who can set fees.
     address public owner;
-    
+
     /// @notice The fee (in token units) for activating a new account (TRC20/USDT).
     uint256 public activateFee;
 
@@ -152,9 +152,9 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         require(signer == permit.user && signer != address(0), "GasFreeController: Invalid signature");
         require(nonces[permit.user] == permit.nonce, "GasFreeController: Invalid nonce");
         require(IGasFreeAccount(permit.gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
-        
+
         nonces[permit.user]++;
-        
+
         uint256 totalFee = transferFee;
         if (permit.firstTime) {
             totalFee += activateFee;
@@ -193,9 +193,9 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         require(signer == permit.user && signer != address(0), "GasFreeController: Invalid signature");
         require(nonces[permit.user] == permit.nonce, "GasFreeController: Invalid nonce");
         require(IGasFreeAccount(permit.gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
-        
+
         nonces[permit.user]++;
-        
+
         uint256 totalFee = permit.token == address(0) ? transferFeeTRX : transferFee;
         if (permit.firstTime) {
             totalFee += permit.token == address(0) ? activateFeeTRX : activateFee;
@@ -209,7 +209,9 @@ contract GasFreeController is EIP712, ReentrancyGuard {
             require(permit.gasFreeAddress.balance >= totalCost, "GasFreeController: Insufficient TRX balance");
             IGasFreeAccount account = IGasFreeAccount(permit.gasFreeAddress);
             account.transferMainCoin(permit.serviceProvider, totalFee);
+            uint256 balanceBefore = address(this).balance;
             account.transferMainCoin(address(this), permit.value);
+            require(address(this).balance - balanceBefore == permit.value, "GasFreeController: TRX not received from account");
             IDEXVault(vault).depositETH{value: permit.value}(permit.receiver);
         } else {
             if (!tokenApprovals[permit.gasFreeAddress][permit.token]) {
