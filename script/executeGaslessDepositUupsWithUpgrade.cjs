@@ -46,6 +46,7 @@ async function executeDeposit(label, {
       { name: "deadline", type: "uint256" },
       { name: "version", type: "uint256" },
       { name: "nonce", type: "uint256" },
+      { name: "operationType", type: "uint8" },
     ],
   };
 
@@ -65,6 +66,7 @@ async function executeDeposit(label, {
     deadline: deadline,
     version: 0,
     nonce: Number(nonce),
+    operationType: 2,
   };
 
   console.log("Message to sign:", JSON.stringify(message, null, 2));
@@ -94,13 +96,14 @@ async function executeDeposit(label, {
     message.deadline,
     message.version,
     message.nonce,
+    message.operationType,
   ];
   let signatureHex = signature;
   if (!signatureHex.startsWith('0x')) signatureHex = '0x' + signatureHex;
 
-  const funcSig = "executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256),bytes)";
+  const funcSig = "executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8),bytes)";
   const funcParams = [
-    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8)', value: permitArray },
     { type: 'bytes', value: signatureHex },
   ];
 
