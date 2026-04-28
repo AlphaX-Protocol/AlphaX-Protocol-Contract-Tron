@@ -23,8 +23,12 @@ interface IDEXVault {
 contract GasFreeController is EIP712, ReentrancyGuard {
     /// @dev EIP712 type hash for the PermitTransfer struct.
     bytes32 private constant PERMIT_TRANSFER_TYPEHASH = keccak256(
-        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,bool firstTime,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce)"
+        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,bool firstTime,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce,uint8 operationType)"
     );
+
+    /// @dev Operation type identifiers bound into the signed payload.
+    uint8 private constant OP_TRANSFER = 1;
+    uint8 private constant OP_DEPOSIT_VAULT = 2;
 
     /// @dev Matches the structure in the GasFree documentation for signature verification.
     struct PermitTransfer {
@@ -39,6 +43,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         uint256 deadline;
         uint256 version;
         uint256 nonce;
+        uint8 operationType;
     }
     
     /// @notice Per-user nonces to prevent signature replay attacks.
@@ -145,6 +150,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     function executePermitTransfer(PermitTransfer calldata permit, bytes calldata signature) external nonReentrant {
         require(permit.deadline >= block.timestamp, "GasFreeController: Permit expired");
         require(permit.token != address(0), "GasFreeController: Use TRC20 tokens only");
+        require(permit.operationType == OP_TRANSFER, "GasFreeController: Invalid operation type");
         bytes32 structHash = _hashPermit(permit);
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, signature);
@@ -185,6 +191,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     function executePermitDepositVault(PermitTransfer calldata permit, bytes calldata signature) external nonReentrant {
         require(vault != address(0), "GasFreeController: vault not set");
         require(permit.deadline >= block.timestamp, "GasFreeController: Permit expired");
+        require(permit.operationType == OP_DEPOSIT_VAULT, "GasFreeController: Invalid operation type");
         
         bytes32 structHash = _hashPermit(permit);
         bytes32 digest = _hashTypedDataV4(structHash);
@@ -245,7 +252,8 @@ contract GasFreeController is EIP712, ReentrancyGuard {
             permit.maxFee,
             permit.deadline,
             permit.version,
-            permit.nonce
+            permit.nonce,
+            permit.operationType
         ));
     }
 

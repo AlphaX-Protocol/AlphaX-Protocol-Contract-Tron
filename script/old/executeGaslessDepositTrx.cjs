@@ -133,7 +133,8 @@ async function main() {
       { name: 'maxFee', type: 'uint256' },
       { name: 'deadline', type: 'uint256' },
       { name: 'version', type: 'uint256' },
-      { name: 'nonce', type: 'uint256' }
+      { name: 'nonce', type: 'uint256' },
+      { name: 'operationType', type: 'uint8' },
     ]
   };
   const deadline = Math.floor(Date.now() / 1000) + 3600;
@@ -148,7 +149,8 @@ async function main() {
     maxFee: maxFeeSun,
     deadline,
     version: 0,
-    nonce: Number(nonce)
+    nonce: Number(nonce),
+    operationType: 2,
   };
 
   console.log("message:", message);
@@ -179,13 +181,14 @@ async function main() {
     message.maxFee,
     message.deadline,
     message.version,
-    message.nonce
+    message.nonce,
+    message.operationType,
   ];
 
   console.log('\n--- Executing executePermitDepositVault (TRX) ---');
 
   const contractParams = [
-    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8)', value: permitArray },
     { type: 'bytes', value: signatureHex },
   ];
 
@@ -193,7 +196,7 @@ async function main() {
   try {
     const energyEstimate = await tronWebRelayer.transactionBuilder.estimateEnergy(
       GAS_FREE_CONTROLLER_ADDRESS,
-      'executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256),bytes)',
+      'executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8),bytes)',
       { callValue: 0 },
       contractParams,
       relayerAddress
@@ -215,7 +218,7 @@ async function main() {
   try {
     simulationResult = await tronWebRelayer.transactionBuilder.triggerSmartContract(
       GAS_FREE_CONTROLLER_ADDRESS,
-      'executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256),bytes)',
+      'executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8),bytes)',
       { callValue: 0, feeLimit },
       contractParams,
       relayerAddress
