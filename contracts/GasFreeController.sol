@@ -23,8 +23,12 @@ interface IDEXVault {
 contract GasFreeController is EIP712, ReentrancyGuard {
     /// @dev EIP712 type hash for the PermitTransfer struct.
     bytes32 private constant PERMIT_TRANSFER_TYPEHASH = keccak256(
-        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce)"
+        "PermitTransfer(address token,address serviceProvider,address user,address receiver,address gasFreeAddress,bool firstTime,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce,uint8 operationType)"
     );
+
+    /// @dev Operation type identifiers bound into the signed payload.
+    uint8 private constant OP_TRANSFER = 1;
+    uint8 private constant OP_DEPOSIT_VAULT = 2;
 
     /// @dev Matches the structure in the GasFree documentation for signature verification.
     struct PermitTransfer {
@@ -33,11 +37,13 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         address user;
         address receiver;
         address gasFreeAddress;
+        bool firstTime;
         uint256 value;
         uint256 maxFee;
         uint256 deadline;
         uint256 version;
         uint256 nonce;
+        uint8 operationType;
     }
     
     /// @notice Per-user nonces to prevent signature replay attacks.
@@ -51,9 +57,12 @@ contract GasFreeController is EIP712, ReentrancyGuard {
 
     /// @notice The owner of the controller, who can set fees.
     address public owner;
-    
-    /// @notice The fee (in token units) for activating a new account.
+
+    /// @notice The fee (in token units) for activating a new account (TRC20/USDT).
     uint256 public activateFee;
+
+    /// @notice The fee (in sun) for activating a new account (TRX).
+    uint256 public activateFeeTRX;
 
     /// @notice The fee (in token units) for each TRC20 transfer.
     uint256 public transferFee;
@@ -62,7 +71,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     uint256 public transferFeeTRX;
 
     event OwnerUpdated(address indexed newOwner);
-    event FeesUpdated(uint256 activateFee, uint256 transferFee, uint256 transferFeeTRX);
+    event FeesUpdated(uint256 activateFee, uint256 activateFeeTRX, uint256 transferFee, uint256 transferFeeTRX);
     event VaultUpdated(address indexed oldVault, address indexed newVault);
     event TransferExecuted(
         address indexed user,
@@ -90,16 +99,18 @@ contract GasFreeController is EIP712, ReentrancyGuard {
 
     /**
      * @notice Sets the fees for activation and transfers.
-     * @dev activateFee/transferFee in token smallest units; transferFeeTRX in sun.
-     * @param _activateFee The new fee for account activation.
+     * @dev activateFee/transferFee in token smallest units; activateFeeTRX/transferFeeTRX in sun.
+     * @param _activateFee The new fee for account activation (TRC20, in token units).
+     * @param _activateFeeTRX The new fee for account activation (TRX, in sun).
      * @param _transferFee The new fee for each TRC20 transfer.
      * @param _transferFeeTRX The new fee (in sun) for each TRX transfer/deposit.
      */
-    function setFees(uint256 _activateFee, uint256 _transferFee, uint256 _transferFeeTRX) external onlyOwner {
+    function setFees(uint256 _activateFee, uint256 _activateFeeTRX, uint256 _transferFee, uint256 _transferFeeTRX) external onlyOwner {
         activateFee = _activateFee;
+        activateFeeTRX = _activateFeeTRX;
         transferFee = _transferFee;
         transferFeeTRX = _transferFeeTRX;
-        emit FeesUpdated(_activateFee, _transferFee, _transferFeeTRX);
+        emit FeesUpdated(_activateFee, _activateFeeTRX, _transferFee, _transferFeeTRX);
     }
     
     function transferOwnership(address newOwner) external onlyOwner {
@@ -139,6 +150,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     function executePermitTransfer(PermitTransfer calldata permit, bytes calldata signature) external nonReentrant {
         require(permit.deadline >= block.timestamp, "GasFreeController: Permit expired");
         require(permit.token != address(0), "GasFreeController: Use TRC20 tokens only");
+        require(permit.operationType == OP_TRANSFER, "GasFreeController: Invalid operation type");
         bytes32 structHash = _hashPermit(permit);
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, signature);
@@ -146,10 +158,13 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         require(signer == permit.user && signer != address(0), "GasFreeController: Invalid signature");
         require(nonces[permit.user] == permit.nonce, "GasFreeController: Invalid nonce");
         require(IGasFreeAccount(permit.gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
-        
+
         nonces[permit.user]++;
-        
+
         uint256 totalFee = transferFee;
+        if (permit.firstTime) {
+            totalFee += activateFee;
+        }
 
         require(permit.maxFee >= totalFee, "GasFreeController: maxFee exceeded");
 
@@ -176,6 +191,7 @@ contract GasFreeController is EIP712, ReentrancyGuard {
     function executePermitDepositVault(PermitTransfer calldata permit, bytes calldata signature) external nonReentrant {
         require(vault != address(0), "GasFreeController: vault not set");
         require(permit.deadline >= block.timestamp, "GasFreeController: Permit expired");
+        require(permit.operationType == OP_DEPOSIT_VAULT, "GasFreeController: Invalid operation type");
         
         bytes32 structHash = _hashPermit(permit);
         bytes32 digest = _hashTypedDataV4(structHash);
@@ -184,10 +200,13 @@ contract GasFreeController is EIP712, ReentrancyGuard {
         require(signer == permit.user && signer != address(0), "GasFreeController: Invalid signature");
         require(nonces[permit.user] == permit.nonce, "GasFreeController: Invalid nonce");
         require(IGasFreeAccount(permit.gasFreeAddress).owner() == permit.user, "GasFreeController: account not owned by user");
-        
+
         nonces[permit.user]++;
-        
+
         uint256 totalFee = permit.token == address(0) ? transferFeeTRX : transferFee;
+        if (permit.firstTime) {
+            totalFee += permit.token == address(0) ? activateFeeTRX : activateFee;
+        }
 
         require(permit.maxFee >= totalFee, "GasFreeController: maxFee exceeded");
 
@@ -197,7 +216,9 @@ contract GasFreeController is EIP712, ReentrancyGuard {
             require(permit.gasFreeAddress.balance >= totalCost, "GasFreeController: Insufficient TRX balance");
             IGasFreeAccount account = IGasFreeAccount(permit.gasFreeAddress);
             account.transferMainCoin(permit.serviceProvider, totalFee);
+            uint256 balanceBefore = address(this).balance;
             account.transferMainCoin(address(this), permit.value);
+            require(address(this).balance - balanceBefore == permit.value, "GasFreeController: TRX not received from account");
             IDEXVault(vault).depositETH{value: permit.value}(permit.receiver);
         } else {
             if (!tokenApprovals[permit.gasFreeAddress][permit.token]) {
@@ -226,11 +247,13 @@ contract GasFreeController is EIP712, ReentrancyGuard {
             permit.user,
             permit.receiver,
             permit.gasFreeAddress,
+            permit.firstTime,
             permit.value,
             permit.maxFee,
             permit.deadline,
             permit.version,
-            permit.nonce
+            permit.nonce,
+            permit.operationType
         ));
     }
 

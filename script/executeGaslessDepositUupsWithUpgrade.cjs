@@ -40,11 +40,13 @@ async function executeDeposit(label, {
       { name: "user", type: "address" },
       { name: "receiver", type: "address" },
       { name: "gasFreeAddress", type: "address" },
+      { name: "firstTime", type: "bool" },
       { name: "value", type: "uint256" },
       { name: "maxFee", type: "uint256" },
       { name: "deadline", type: "uint256" },
       { name: "version", type: "uint256" },
       { name: "nonce", type: "uint256" },
+      { name: "operationType", type: "uint8" },
     ],
   };
 
@@ -58,11 +60,13 @@ async function executeDeposit(label, {
     user: toStandardHex(tronWebUser, userAddress),
     receiver: toStandardHex(tronWebUser, RECIPIENT_ADDRESS),
     gasFreeAddress: toStandardHex(tronWebUser, userGasFreeAccountAddress),
+    firstTime: false,
     value: transferValue.toString(),
     maxFee: maxFee.toString(),
     deadline: deadline,
     version: 0,
     nonce: Number(nonce),
+    operationType: 2,
   };
 
   console.log("Message to sign:", JSON.stringify(message, null, 2));
@@ -86,18 +90,20 @@ async function executeDeposit(label, {
     toStandardHex(tronWebRelayer, message.user),
     toStandardHex(tronWebRelayer, message.receiver),
     toStandardHex(tronWebRelayer, userGasFreeAccountAddress),
+    message.firstTime,
     message.value,
     message.maxFee,
     message.deadline,
     message.version,
     message.nonce,
+    message.operationType,
   ];
   let signatureHex = signature;
   if (!signatureHex.startsWith('0x')) signatureHex = '0x' + signatureHex;
 
-  const funcSig = "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)";
+  const funcSig = "executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8),bytes)";
   const funcParams = [
-    { type: '(address,address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8)', value: permitArray },
     { type: 'bytes', value: signatureHex },
   ];
 
