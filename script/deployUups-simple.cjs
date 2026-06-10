@@ -189,7 +189,7 @@ async function main() {
 
   
   return {
-    factoryAddress,
+
     controllerAddress,
     dexVaultProxy: dexVaultAddress,
     dexVaultImplementation: implAddress,
