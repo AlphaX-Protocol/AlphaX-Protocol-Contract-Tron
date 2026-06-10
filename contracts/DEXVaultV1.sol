@@ -215,6 +215,7 @@ contract DEXVaultV1 is
             abi.encodePacked(
                 "ETHER",
                 block.chainid,
+                owner,
                 to,
                 amount,
                 expireTime,
@@ -292,6 +293,7 @@ contract DEXVaultV1 is
             abi.encodePacked(
                 "ERC20",
                 block.chainid,
+                owner,
                 to,
                 amount,
                 token,
@@ -477,6 +479,7 @@ contract DEXVaultV1 is
      */
 
     function calcSigHash(
+        address owner,
         address to,
         uint256 amount,
         address token,
@@ -490,6 +493,7 @@ contract DEXVaultV1 is
                 abi.encodePacked(
                     "ETHER",
                     block.chainid,
+                    owner,
                     to,
                     amount,
                     expireTime,
@@ -502,6 +506,7 @@ contract DEXVaultV1 is
                 abi.encodePacked(
                     "ERC20",
                     block.chainid,
+                    owner,
                     to,
                     amount,
                     token,

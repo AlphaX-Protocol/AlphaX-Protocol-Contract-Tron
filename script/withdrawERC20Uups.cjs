@@ -164,10 +164,11 @@ async function main() {
   const requestId = Date.now();
 
   const operationHash = ethers.solidityPackedKeccak256(
-    ['string', 'uint256', 'address', 'uint256', 'address', 'uint256', 'uint256', 'address'],
+    ['string', 'uint256', 'address', 'address', 'uint256', 'address', 'uint256', 'uint256', 'address'],
     [
       'ERC20',
       networkConfig.chainId,
+      '0x' + toHex20(callerAddress),
       '0x' + toHex20(WITHDRAW_TO),
       amountSun,
       '0x' + toHex20(usdtAddress),

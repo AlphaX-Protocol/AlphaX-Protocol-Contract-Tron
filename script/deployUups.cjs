@@ -211,11 +211,12 @@ async function main() {
   // ========================================================================
   console.log("Setting initial fees for GasFreeController...");
   const controllerInstance = await tronWeb.contract(GasFreeControllerArtifact.abi, controllerAddress);
-  const activateFee   = tronWeb.toSun('1', 'TRC20');
-  const transferFee   = tronWeb.toSun('1', 'TRC20');
-  const transferFeeTRX = tronWeb.toSun('1');
+  const activateFee     = tronWeb.toSun('1', 'TRC20');   // 1 USDT for first-time TRC20
+  const activateFeeTRX = tronWeb.toSun('10');            // 1 TRX (sun) for first-time TRX
+  const transferFee     = tronWeb.toSun('1', 'TRC20');
+  const transferFeeTRX  = tronWeb.toSun('1');
 
-  const setFeesTxId = await controllerInstance.setFees(activateFee, transferFee, transferFeeTRX).send({
+  const setFeesTxId = await controllerInstance.setFees(activateFee, activateFeeTRX, transferFee, transferFeeTRX).send({
     feeLimit: 100_000_000,
     callValue: 0,
     shouldPollResponse: false

@@ -57,6 +57,12 @@ async function main() {
 
   const nonce = await controller.nonces(userAddress).call();
   console.log(`User's current nonce: ${Number(nonce)}`);
+  
+  // set todo 
+  const firstTime = true;
+  const transferFee = await controller.transferFee().call();
+  const activateFee = firstTime ? await controller.activateFee().call() : 0;
+  const maxFeeRaw = BigInt(transferFee.toString()) + BigInt(activateFee.toString());
 
   const domain = {
     name: "GasFreeController",
@@ -72,16 +78,18 @@ async function main() {
       { name: "user", type: "address" },
       { name: "receiver", type: "address" },
       { name: "gasFreeAddress", type: "address" },
+      { name: "firstTime", type: "bool" },
       { name: "value", type: "uint256" },
       { name: "maxFee", type: "uint256" },
       { name: "deadline", type: "uint256" },
       { name: "version", type: "uint256" },
       { name: "nonce", type: "uint256" },
+      { name: "operationType", type: "uint8" },
     ],
   };
 
   const transferValue = tronWebUser.toSun('10', 6); // 10 USDT
-  const maxFee = tronWebUser.toSun('1', 6);
+  const maxFee = maxFeeRaw.toString();
   const deadline = Math.floor(Date.now() / 1000) + 3600;
 
   const message = {
@@ -90,11 +98,13 @@ async function main() {
     user: toStandardHex(tronWebUser, userAddress),
     receiver: toStandardHex(tronWebUser, RECIPIENT_ADDRESS),
     gasFreeAddress: toStandardHex(tronWebUser, userGasFreeAccountAddress),
+    firstTime,
     value: transferValue.toString(),
-    maxFee: maxFee.toString(),
+    maxFee,
     deadline: deadline,
     version: 0,
     nonce: Number(nonce),
+    operationType: 2,
   };
 
   console.log("Message to sign:", JSON.stringify(message, null, 2));
@@ -102,12 +112,13 @@ async function main() {
   const signature = tronWebUser.trx.signTypedData(domain, types, message, USER_PRIVATE_KEY);
   console.log("Generated Signature:", signature);
 
-  // Check balance
+  // Check balance (value + total fee)
+  const totalCost = BigInt(transferValue.toString()) + BigInt(maxFee);
   const gasFreeAccountBalance = await usdt.balanceOf(userGasFreeAccountAddress).call();
   const gasFreeAccountBalanceFormatted = tronWebRelayer.fromSun(gasFreeAccountBalance, 6);
-  if (parseFloat(gasFreeAccountBalanceFormatted) < parseFloat(tronWebRelayer.fromSun(transferValue, 6))) {
+  if (BigInt(gasFreeAccountBalance.toString()) < totalCost) {
     console.error(`Error: GasFreeAccount (${userGasFreeAccountAddress}) has insufficient USDT balance.`);
-    console.error(`   Required: ${tronWebRelayer.fromSun(transferValue, 6)} USDT, Available: ${gasFreeAccountBalanceFormatted} USDT`);
+    console.error(`   Required: ${tronWebRelayer.fromSun(totalCost.toString(), 6)} USDT (value + fee), Available: ${gasFreeAccountBalanceFormatted} USDT`);
     process.exit(1);
   }
   console.log(`GasFreeAccount balance: ${gasFreeAccountBalanceFormatted} USDT (sufficient)`);
@@ -118,18 +129,20 @@ async function main() {
     toStandardHex(tronWebRelayer, message.user),
     toStandardHex(tronWebRelayer, message.receiver),
     toStandardHex(tronWebRelayer, userGasFreeAccountAddress),
+    message.firstTime,
     message.value,
     message.maxFee,
     message.deadline,
     message.version,
     message.nonce,
+    message.operationType,
   ];
   let signatureHex = signature;
   if (!signatureHex.startsWith('0x')) signatureHex = '0x' + signatureHex;
 
-  const funcSig = "executePermitDepositVault((address,address,address,address,address,uint256,uint256,uint256,uint256,uint256),bytes)";
+  const funcSig = "executePermitDepositVault((address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8),bytes)";
   const funcParams = [
-    { type: '(address,address,address,address,address,uint256,uint256,uint256,uint256,uint256)', value: permitArray },
+    { type: '(address,address,address,address,address,bool,uint256,uint256,uint256,uint256,uint256,uint8)', value: permitArray },
     { type: 'bytes', value: signatureHex },
   ];
 
